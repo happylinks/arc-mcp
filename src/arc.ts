@@ -693,3 +693,30 @@ export function openUrl(url: string, spaceNameOrId?: string): { success: boolean
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
+
+export function createWorkspace(
+  name: string,
+  urls: Array<{ url: string; title?: string }>,
+  icon: string = "🔧"
+): { success: boolean; spaceId?: string; tabIds?: string[]; error?: string } {
+  // Create the space first
+  const spaceResult = createSpace(name, icon);
+  if (!spaceResult.success || !spaceResult.spaceId) {
+    return { success: false, error: spaceResult.error || "Failed to create space" };
+  }
+
+  // Add tabs to the space
+  const tabIds: string[] = [];
+  for (const { url, title } of urls) {
+    const tabResult = addTab(spaceResult.spaceId, url, title, false);
+    if (tabResult.success && tabResult.tabId) {
+      tabIds.push(tabResult.tabId);
+    }
+  }
+
+  return {
+    success: true,
+    spaceId: spaceResult.spaceId,
+    tabIds,
+  };
+}

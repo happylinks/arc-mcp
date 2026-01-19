@@ -12,6 +12,7 @@ import {
   addTab,
   deleteTab,
   openUrl,
+  createWorkspace,
 } from "./arc.js";
 
 const server = new McpServer({
@@ -258,6 +259,46 @@ server.tool(
           {
             type: "text",
             text: `Failed to open URL: ${result.error}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Tool: Create workspace
+server.tool(
+  "create_workspace",
+  "Create a new workspace (space + tabs) in one command. Useful for setting up a focused context for a ticket or task. Requires Arc restart.",
+  {
+    name: z.string().describe("Name of the workspace (e.g., ticket ID like 'TELLA-4320')"),
+    urls: z
+      .array(
+        z.object({
+          url: z.string().url().describe("URL to add"),
+          title: z.string().optional().describe("Optional title for the tab"),
+        })
+      )
+      .describe("List of URLs to open in the workspace"),
+    icon: z.string().optional().default("🔧").describe("Icon for the space (emoji or SF Symbol)"),
+  },
+  async ({ name, urls, icon }) => {
+    const result = createWorkspace(name, urls, icon);
+    if (result.success) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Workspace "${name}" created with ${result.tabIds?.length || 0} tabs (Space ID: ${result.spaceId}). Restart Arc to see it.`,
+          },
+        ],
+      };
+    } else {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to create workspace: ${result.error}`,
           },
         ],
       };
