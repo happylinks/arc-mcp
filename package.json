@@ -1,0 +1,27 @@
+{
+  "name": "arc-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Arc browser - manage spaces and tabs",
+  "main": "src/index.ts",
+  "type": "module",
+  "bin": {
+    "arc-mcp": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts"
+  },
+  "keywords": ["mcp", "arc", "browser", "spaces", "tabs"],
+  "author": "Michiel Westerbeek",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0"
+  }
+}
