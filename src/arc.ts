@@ -17,8 +17,19 @@ export interface Tab {
   id: string;
   title: string;
   url: string;
-  location: "pinned" | "unpinned";
+}
+
+export interface Folder {
+  id: string;
+  title: string;
+  children: Array<Tab | Folder>;
+}
+
+export interface SpaceTabs {
   spaceId: string;
+  spaceTitle: string;
+  pinned: Array<Tab | Folder>;
+  unpinned: Array<Tab | Folder>;
 }
 
 interface SidebarData {
@@ -395,61 +406,104 @@ export function focusSpace(spaceNameOrId: string): { success: boolean; error?: s
   }
 }
 
-export function listTabs(spaceNameOrId?: string): Tab[] {
+export function listTabs(spaceNameOrId?: string): SpaceTabs | null {
   const data = loadSidebar();
-  const tabs: Tab[] = [];
-
-  // Build a map of container ID -> space ID and pinned/unpinned status
-  const containerToSpace = new Map<string, { spaceId: string; isPinned: boolean }>();
   const spaces = data.sidebar?.containers?.[1]?.spaces || [];
-
-  for (const item of spaces) {
-    if (typeof item === "object" && item.id && item.containerIDs) {
-      const containerIDs = item.containerIDs.filter((id) => id !== "pinned" && id !== "unpinned");
-      // First container is pinned, second is unpinned
-      if (containerIDs[0]) containerToSpace.set(containerIDs[0], { spaceId: item.id, isPinned: true });
-      if (containerIDs[1]) containerToSpace.set(containerIDs[1], { spaceId: item.id, isPinned: false });
-    }
-  }
-
-  // Find the target space ID if filtering
-  let targetSpaceId: string | undefined;
-  if (spaceNameOrId) {
-    for (const item of spaces) {
-      if (typeof item === "object") {
-        if (item.id === spaceNameOrId || item.title === spaceNameOrId) {
-          targetSpaceId = item.id;
-          break;
-        }
-      }
-    }
-    if (!targetSpaceId) {
-      return []; // Space not found
-    }
-  }
-
-  // Find all tabs
   const items = data.sidebar?.containers?.[1]?.items || [];
-  for (const item of items) {
-    if (typeof item === "object" && item.data?.tab && item.parentID) {
-      const containerInfo = containerToSpace.get(item.parentID);
-      if (containerInfo) {
-        if (targetSpaceId && containerInfo.spaceId !== targetSpaceId) {
-          continue;
-        }
 
-        tabs.push({
-          id: item.id,
-          title: item.data.tab.savedTitle || item.data.tab.savedURL || "Untitled",
-          url: item.data.tab.savedURL || "",
-          location: containerInfo.isPinned ? "pinned" : "unpinned",
-          spaceId: containerInfo.spaceId,
-        });
+  // Build item map for quick lookup
+  const itemMap = new Map<string, ItemObject>();
+  for (const item of items) {
+    if (typeof item === "object") {
+      itemMap.set(item.id, item);
+    }
+  }
+
+  // Find the target space
+  let targetSpace: SpaceObject | undefined;
+  for (const item of spaces) {
+    if (typeof item === "object") {
+      if (!spaceNameOrId || item.id === spaceNameOrId || item.title === spaceNameOrId) {
+        targetSpace = item;
+        break;
       }
     }
   }
 
-  return tabs;
+  if (!targetSpace) {
+    return null;
+  }
+
+  // Get container IDs (first is pinned, second is unpinned)
+  const containerIDs = (targetSpace.containerIDs || []).filter((id) => id !== "pinned" && id !== "unpinned");
+  const pinnedContainerId = containerIDs[0];
+  const unpinnedContainerId = containerIDs[1];
+
+  // Helper to determine item type
+  function getItemType(item: ItemObject): "tab" | "folder" | "container" {
+    if (item.data?.tab) return "tab";
+    if (item.data?.itemContainer) return "container";
+    if (item.childrenIds && item.childrenIds.length > 0) return "folder";
+    return "folder"; // Empty folder
+  }
+
+  // Recursively build tree structure
+  function buildTree(itemId: string): Tab | Folder | null {
+    const item = itemMap.get(itemId);
+    if (!item) return null;
+
+    const itemType = getItemType(item);
+
+    if (itemType === "tab") {
+      return {
+        id: item.id,
+        title: item.data?.tab?.savedTitle || item.data?.tab?.savedURL || "Untitled",
+        url: item.data?.tab?.savedURL || "",
+      };
+    }
+
+    if (itemType === "folder") {
+      const children: Array<Tab | Folder> = [];
+      for (const childId of item.childrenIds || []) {
+        const child = buildTree(childId);
+        if (child) children.push(child);
+      }
+      return {
+        id: item.id,
+        title: item.title || "Untitled",
+        children,
+      };
+    }
+
+    return null;
+  }
+
+  // Build pinned items
+  const pinned: Array<Tab | Folder> = [];
+  const pinnedContainer = itemMap.get(pinnedContainerId);
+  if (pinnedContainer) {
+    for (const childId of pinnedContainer.childrenIds || []) {
+      const child = buildTree(childId);
+      if (child) pinned.push(child);
+    }
+  }
+
+  // Build unpinned items
+  const unpinned: Array<Tab | Folder> = [];
+  const unpinnedContainer = itemMap.get(unpinnedContainerId);
+  if (unpinnedContainer) {
+    for (const childId of unpinnedContainer.childrenIds || []) {
+      const child = buildTree(childId);
+      if (child) unpinned.push(child);
+    }
+  }
+
+  return {
+    spaceId: targetSpace.id,
+    spaceTitle: targetSpace.title,
+    pinned,
+    unpinned,
+  };
 }
 
 export function addTab(

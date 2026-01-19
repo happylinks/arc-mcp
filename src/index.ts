@@ -138,20 +138,30 @@ server.tool(
 // Tool: List tabs
 server.tool(
   "list_tabs",
-  "List tabs in Arc browser, optionally filtered by space",
+  "List tabs and folders in an Arc browser space with full hierarchy. Shows pinned and unpinned sections with nested folders.",
   {
     space: z
       .string()
       .optional()
-      .describe("Name or ID of the space to list tabs from (optional, lists all tabs if not specified)"),
+      .describe("Name or ID of the space to list tabs from (optional, defaults to first space)"),
   },
   async ({ space }) => {
-    const tabs = listTabs(space);
+    const result = listTabs(space);
+    if (!result) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: space ? `Space not found: ${space}` : "No spaces found",
+          },
+        ],
+      };
+    }
     return {
       content: [
         {
           type: "text",
-          text: JSON.stringify(tabs, null, 2),
+          text: JSON.stringify(result, null, 2),
         },
       ],
     };
